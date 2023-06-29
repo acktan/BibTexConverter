@@ -10,7 +10,7 @@ class ApaConverter():
                             'article': 'article, periodical, journal, magazine',
                             'book': 'book, publications,  publication',
                             'booklet': 'book, no publisher',
-                            'conference': 'conference, paper',
+                            #'conference': 'conference, paper', this var is outdated
                             'inbook': 'section, chapter, book',
                             'incollection': 'article, collection',
                             'inproceedings': 'conference, paper',
@@ -60,11 +60,15 @@ class ApaConverter():
         bibtex_name = ''.join([author.split(', ', maxsplit=1)[0].lower(), year])
         full_bibtex = f"""{bibtex_type}{{{bibtex_name}, \n author = {{{author}}}, \n title = {{{title}}}, \n year = {year}, \n """
 
+        # BibTeX for book types
+
         if bibtex_type == '@book':
             publisher = self.get_publishers(input_text)
             full_bibtex += f'publisher = {{{publisher}}}, \n '
             if self.location:
                 full_bibtex += f'location = {{{self.location}}}, \n '
+
+        # BibTeX for articles types 
 
         if bibtex_type == '@article':
             try:
@@ -89,7 +93,20 @@ class ApaConverter():
                     journal = self.get_journal(input_text)
                     full_bibtex += f'journal = {{{journal}}}, \n'
 
-        # close out parentheses on BibTeX
+        # BibTeX for conference proceedings
+
+        if bibtex_type == '@inproceedings':
+            booktitle = self.get_booktitle(input_text)
+            if '(' in booktitle:
+                segment = booktitle.split('(')
+                booktitle = segment[0]
+                pages = segment[1]
+                pages = ApaConverter.remove_non_numeric_chars(pages)
+                full_bibtex += f'booktitle = {{{booktitle}}}, \n pages = {{{pages}}}, \n'
+            else:
+                full_bibtex += f'booktitle = {{{booktitle}}}, \n'
+
+        # close out parentheses on all BibTeX types
         full_bibtex += '}'
         return full_bibtex
 
@@ -106,6 +123,18 @@ class ApaConverter():
         if title:
             return title
         return None
+    
+    def get_booktitle(self, input_text: str) -> Optional[str]:
+        """Get booktitle from apa citation
+
+        Args:
+            input_text = the entire citation
+        Returns:
+            title of booktitle
+        """
+        string = ApaConverter.split_by_period(input_text)[2]
+        return string
+
 
     def get_year(self, input_text) -> Optional[str]:
         """Get first instance of 4 numbers within parentheses in citation
@@ -193,13 +222,14 @@ class ApaConverter():
         """Split citation by period
 
         Args:
-            input_text = the entire citation
+            input_text: the entire citation
         Returns:   
             split strings
         """
-        pattern = r'(?<=\S\S)\. '
+        pattern = r'(?<=\S\S)(?<!pp)(?<!p)\. '
         split_strings = re.split(pattern, input_text)
         return split_strings
+
 
     @staticmethod
     def remove_non_numeric_chars(input_string):
@@ -215,4 +245,3 @@ class ApaConverter():
             if all(part.isdigit() for part in parts):
                 cleaned_string = '-'.join(parts)
         return cleaned_string
-
