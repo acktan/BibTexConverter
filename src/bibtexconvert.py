@@ -1,5 +1,7 @@
 import re
 from typing import Optional
+from urllib.parse import urlparse
+
 
 
 class ApaConverter():
@@ -57,7 +59,14 @@ class ApaConverter():
         title = self.get_title(input_text)
         year = self.get_year(input_text)
 
-        bibtex_name = ''.join([author.split(', ', maxsplit=1)[0].lower(), year])
+        bibtex_name_author = author.split(', ', maxsplit=1)[0].lower()
+        if len(bibtex_name_author.split(' ')) > 1:
+            bibtex_name_author = bibtex_name_author.split(' ')[0]
+        if len(title.split(' ')) > 1:
+            bibtex_name_title = title.split(' ')[0].lower()
+        else:
+            bibtex_name_title = title.lower()
+        bibtex_name = ''.join([bibtex_name_author, year, bibtex_name_title])
         full_bibtex = f"""{bibtex_type}{{{bibtex_name}, \n author = {{{author}}}, \n title = {{{title}}}, \n year = {year}, \n """
 
         # BibTeX for book types
@@ -68,7 +77,7 @@ class ApaConverter():
             if self.location:
                 full_bibtex += f'location = {{{self.location}}}, \n '
 
-        # BibTeX for articles types 
+        # BibTeX for articles types
 
         if bibtex_type == '@article':
             try:
@@ -99,12 +108,21 @@ class ApaConverter():
             booktitle = self.get_booktitle(input_text)
             if '(' in booktitle:
                 segment = booktitle.split('(')
-                booktitle = segment[0]
-                pages = segment[1]
+                booktitle = segment[0].strip()
+                pages = segment[1].strip()
                 pages = ApaConverter.remove_non_numeric_chars(pages)
                 full_bibtex += f'booktitle = {{{booktitle}}}, \n pages = {{{pages}}}, \n'
             else:
                 full_bibtex += f'booktitle = {{{booktitle}}}, \n'
+
+        # BibTeX for misc proceedings
+        if bibtex_type == '@misc':
+            howpublished = self.get_howpublished(input_text)
+            if howpublished is not None:
+                if ApaConverter.is_url(howpublished):
+                    full_bibtex += f'howpublished = {{{howpublished.replace("http", "url http")}}}, \n'
+                else:
+                    full_bibtex += f'howpublished = {{{howpublished}}}, \n'
 
         # close out parentheses on all BibTeX types
         full_bibtex += '}'
@@ -217,6 +235,21 @@ class ApaConverter():
         journal = string[0]
         return journal.strip().replace('.', '')
 
+    def get_howpublished(self, input_text: str) -> str:
+        """Extract publishing medium for @misc
+
+        Args:
+            input_text = the entire citation
+        Returns:
+            journal name
+        """
+        try:
+            string = ApaConverter.split_by_period(input_text)[3]
+            return string
+        except IndexError:
+            return None
+
+
     @staticmethod
     def split_by_period(input_text):
         """Split citation by period
@@ -245,3 +278,18 @@ class ApaConverter():
             if all(part.isdigit() for part in parts):
                 cleaned_string = '-'.join(parts)
         return cleaned_string
+
+    @staticmethod
+    def is_url(input_string: str) -> bool:
+        """Determine whether text is url
+
+        Args:
+            string: input string
+        Returns:
+            Boolean
+        """
+        try:
+            result = urlparse(input_string)
+            return all([result.scheme, result.netloc])
+        except ValueError:
+            return False
