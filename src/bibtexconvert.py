@@ -1,8 +1,6 @@
 import re
 from typing import Optional
-from urllib.parse import urlparse
-
-
+from src.utils import Helpers # pylint: disable=no-name-in-module
 
 class ApaConverter():
     """Convert APA citation type to BibTeX"""
@@ -21,7 +19,7 @@ class ApaConverter():
                             'phdthesis': 'PhD, thesis',
                             'proceedings': 'conference, proceedings',
                             'techreport': 'technical, report, government, white paper',
-                            'unpublished': 'not published'
+                            'unpublished': 'unpublished'
                             }
         self.location = False
 
@@ -83,7 +81,7 @@ class ApaConverter():
             try:
                 journal, second = self.get_journal(input_text)
                 if '-' in second:
-                    second = ApaConverter.remove_non_numeric_chars(second)
+                    second = Helpers.remove_non_numeric_chars(second)
                     full_bibtex += f'journal = {{{journal}}}, \n pages = {{{second}}}, \n '
                 else:
                     full_bibtex += f'journal = {{{journal}}}, \n volume = {{{second}}}, \n '
@@ -110,19 +108,22 @@ class ApaConverter():
                 segment = booktitle.split('(')
                 booktitle = segment[0].strip()
                 pages = segment[1].strip()
-                pages = ApaConverter.remove_non_numeric_chars(pages)
+                pages = Helpers.remove_non_numeric_chars(pages)
                 full_bibtex += f'booktitle = {{{booktitle}}}, \n pages = {{{pages}}}, \n'
             else:
                 full_bibtex += f'booktitle = {{{booktitle}}}, \n'
 
-        # BibTeX for misc proceedings
+        # BibTeX for misc types
         if bibtex_type == '@misc':
             howpublished = self.get_howpublished(input_text)
+            print(howpublished)
             if howpublished is not None:
-                if ApaConverter.is_url(howpublished):
-                    full_bibtex += f'howpublished = {{{howpublished.replace("http", "url http")}}}, \n'
+                if Helpers.extract_url(howpublished):
+                    backslash_char = "\\"
+                    full_bibtex += f'howpublished = {{{howpublished.replace("http", f"{backslash_char}url http")}}}, \n'
                 else:
                     full_bibtex += f'howpublished = {{{howpublished}}}, \n'
+
 
         # close out parentheses on all BibTeX types
         full_bibtex += '}'
@@ -150,7 +151,7 @@ class ApaConverter():
         Returns:
             title of booktitle
         """
-        string = ApaConverter.split_by_period(input_text)[2]
+        string = Helpers.split_by_period(input_text)[2]
         return string
 
 
@@ -181,7 +182,7 @@ class ApaConverter():
         Returns:
             author names in BibTeX format
         """
-        string = ApaConverter.split_by_period(input_text)[0]
+        string = Helpers.split_by_period(input_text)[0]
         authors = []
     
         string = string.split(' (', 1)[0]
@@ -204,7 +205,7 @@ class ApaConverter():
         Returns:
             publisher, without location
         """
-        string = ApaConverter.split_by_period(input_text)[2]
+        string = Helpers.split_by_period(input_text)[2]
         location_publisher = string.split(':')
         if len(location_publisher) > 1:
             self.location = location_publisher[0].strip()
@@ -220,7 +221,7 @@ class ApaConverter():
         Returns:
             journal name
         """
-        string = ApaConverter.split_by_period(input_text)[2]
+        string = Helpers.split_by_period(input_text)[2]
         string = string.split(',')
         if len(string) == 3:
             journal = string[0]
@@ -244,52 +245,7 @@ class ApaConverter():
             journal name
         """
         try:
-            string = ApaConverter.split_by_period(input_text)[3]
+            string = Helpers.split_by_period(input_text)[3]
             return string
         except IndexError:
             return None
-
-
-    @staticmethod
-    def split_by_period(input_text):
-        """Split citation by period
-
-        Args:
-            input_text: the entire citation
-        Returns:   
-            split strings
-        """
-        pattern = r'(?<=\S\S)(?<!pp)(?<!p)\. '
-        split_strings = re.split(pattern, input_text)
-        return split_strings
-
-
-    @staticmethod
-    def remove_non_numeric_chars(input_string):
-        """Remove non-numeric characters except hyphen, preserving hyphen between numbers
-        Args:
-            input_string: input string
-        Returns:
-            cleaned string
-        """
-        cleaned_string = re.sub(r'[^0-9-]', '', input_string)
-        if '-' in cleaned_string:
-            parts = cleaned_string.split('-')
-            if all(part.isdigit() for part in parts):
-                cleaned_string = '-'.join(parts)
-        return cleaned_string
-
-    @staticmethod
-    def is_url(input_string: str) -> bool:
-        """Determine whether text is url
-
-        Args:
-            string: input string
-        Returns:
-            Boolean
-        """
-        try:
-            result = urlparse(input_string)
-            return all([result.scheme, result.netloc])
-        except ValueError:
-            return False
